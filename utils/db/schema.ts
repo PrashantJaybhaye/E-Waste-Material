@@ -49,12 +49,12 @@ export const Notification = pgTable('notification', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
-export const trasaction = pgTable('transaction', {
+export const Transaction = pgTable('transaction', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').references(() => Users.id).notNull(),
   type: varchar('type', { length: 20 }).notNull(),
   amount: integer('amount').notNull(),
-  decscription: text('description').notNull(),
+  description: text('description').notNull(),
   date: timestamp('date').defaultNow().notNull(),
 });
 
