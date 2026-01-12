@@ -4,6 +4,10 @@ import { eq, sql, and, desc } from "drizzle-orm";
 
 export async function createUser(email: string, name: string) {
     try {
+        const [existingUser] = await db.select().from(Users).where(eq(Users.email, email)).execute();
+        if (existingUser) {
+            return existingUser;
+        }
         const [user] = await db.insert(Users).values({
             email,
             name,

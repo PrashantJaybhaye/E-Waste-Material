@@ -8,7 +8,7 @@ import { Menu, Coins, Leaf, Search, Bell, ChevronDown, LogIn, LogOut, MenuIcon, 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "./ui/dropdown-menu"
 import { Badge } from "./ui/badge"
 // ... imports
-import { SignInButton, UserButton, useUser } from "@clerk/nextjs"
+import { SignInButton, UserButton, useUser, useClerk } from "@clerk/nextjs"
 import { createUser, getUnreadNotifications, getUserBalance, getUserByEmail, markNotificationAsRead } from "@/utils/db/actions"
 import { useMediaQuery } from "@/hooks/useMediaQuery"
 // import { Notification } from "@/utils/db/schema" // Removing this import to avoid conflict
@@ -29,6 +29,7 @@ interface Notification {
 
 export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
     const { user, isSignedIn } = useUser()
+    const { signOut } = useClerk()
     const [notification, setNotification] = useState<Notification[]>([])
     const [balance, setBalance] = useState<number>(0)
     const isMobile = useMediaQuery("(max-width: 768px)")
@@ -173,20 +174,35 @@ export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
                         </span>
                     </div>
                     {!isSignedIn ? (
-                        <SignInButton>
-                            <Button
-                                className="bg-green-600 hover:bg-green-700 text-white text-sm md:text-base"
-                            >
-                                Login
-                                <LogIn className="ml-1 md:ml-2 h-4 w-4 md:h-5 md:w-5" />
-                            </Button>
-                        </SignInButton>
+                        <Button onClick={() => window.location.href = '/sign-in'} className="bg-green-600 hover:bg-green-700 text-white text-sm md:text-base">
+                            Login
+                            <LogIn className="ml-1 md:ml-2 h-4 w-4 md:h-5 md:w-5" />
+                        </Button>
                     ) : (
-                        <UserButton afterSignOutUrl="/" />
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="flex items-center focus:outline-none focus:ring-0 focus:ring-offset-0 mr-2">
+                                    {user?.imageUrl ? (
+                                        <img src={user.imageUrl} alt="User" className="h-8 w-8 rounded-full" />
+                                    ) : (
+                                        <User className="h-5 w-5" />
+                                    )}
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem>
+                                    {user?.fullName || "User"}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                    <Link href="/settings">Profile</Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>Settings</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => signOut()}>Sign Out</DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     )}
                 </div>
             </div>
         </header>
     )
-
 }
