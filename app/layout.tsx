@@ -5,6 +5,8 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { Toaster } from 'react-hot-toast'
 import Header from "@/components/Header"
+import { ClerkProvider } from "@clerk/nextjs"
+import { usePathname } from "next/navigation"
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -13,28 +15,34 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  const pathname = usePathname()
+  const isAuthPage = pathname?.startsWith('/sign-in') || pathname?.startsWith('/sign-up')
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [totalEarning, setTotalEarning] = useState(0)
 
   return (
-    <html lang="en">
-      <body className={inter.className}>
-        <div className="min-h-screen bg-gray-50 flex flex-col">
-          {/* header */}
-          <Header
-            onMenuClick={() => setSidebarOpen(!sidebarOpen)}
-            totalEarnings={totalEarning}
-          />
-          <div className="flex flex-1">
-            {/* sidebar */}
-            <main className="flex-1 p-4 lg:p-8 ml-0 lg:ml-64 transition-all duration-300">
-              {children}
-            </main>
+    <ClerkProvider>
+      <html lang="en">
+        <body className={inter.className}>
+          <div className="min-h-screen bg-gray-50 flex flex-col">
+            {/* Header - Hidden on auth pages */}
+            {!isAuthPage && (
+              <Header
+                onMenuClick={() => setSidebarOpen(!sidebarOpen)}
+                totalEarnings={totalEarning}
+              />
+            )}
+            <div className="flex flex-1">
+              {/* Sidebar container - margins removed on auth pages */}
+              <main className={`flex-1 p-4 lg:p-8 transition-all duration-300 ${!isAuthPage ? 'ml-0 lg:ml-64' : ''}`}>
+                {children}
+              </main>
+            </div>
           </div>
-        </div>
-        <Toaster />
-      </body>
-    </html>
+          <Toaster />
+        </body>
+      </html>
+    </ClerkProvider>
   )
 }
