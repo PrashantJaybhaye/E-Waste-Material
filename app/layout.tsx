@@ -7,6 +7,7 @@ import { Toaster } from 'react-hot-toast'
 import Header from "@/components/Header"
 import { ClerkProvider } from "@clerk/nextjs"
 import { usePathname } from "next/navigation"
+import Sidebar from "@/components/Sidebar"
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -35,6 +36,7 @@ export default function RootLayout({
             )}
             <div className="flex flex-1">
               {/* Sidebar container - margins removed on auth pages */}
+              <Sidebar open={sidebarOpen} />
               <main className={`flex-1 p-4 lg:p-8 transition-all duration-300 ${!isAuthPage ? 'ml-0 lg:ml-64' : ''}`}>
                 {children}
               </main>
