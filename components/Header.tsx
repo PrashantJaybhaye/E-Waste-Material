@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "./ui/button"
-import { Menu, Coins, Leaf, Search, Bell, ChevronDown, LogIn, LogOut, MenuIcon, User } from "lucide-react"
+import { Menu, Coins, Leaf, Search, Bell, ChevronDown, LogIn, LogOut, MenuIcon, User, Loader } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "./ui/dropdown-menu"
 import { Badge } from "./ui/badge"
 // ... imports
@@ -28,15 +28,19 @@ interface Notification {
 }
 
 export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
-    const { user, isSignedIn } = useUser()
+    const { user, isSignedIn, isLoaded } = useUser()
     const { signOut } = useClerk()
     const [notification, setNotification] = useState<Notification[]>([])
     const [balance, setBalance] = useState<number>(0)
+    const [loading, setLoading] = useState(true)
     const isMobile = useMediaQuery("(max-width: 768px)")
 
     useEffect(() => {
+        if (!isLoaded) return;
+
         const syncUserAndFetchData = async () => {
             if (isSignedIn && user) {
+                setLoading(true)
                 const email = user.primaryEmailAddress?.emailAddress;
                 if (email) {
                     try {
@@ -55,10 +59,13 @@ export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
                         setBalance(userBalance)
                     }
                 }
+                setLoading(false)
+            } else {
+                setLoading(false)
             }
         }
         syncUserAndFetchData()
-    }, [isSignedIn, user])
+    }, [isSignedIn, user, isLoaded])
 
     useEffect(() => {
         const fetchNotifications = async () => {
@@ -173,7 +180,9 @@ export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
                             {balance.toFixed(2)}
                         </span>
                     </div>
-                    {!isSignedIn ? (
+                    {loading ? (
+                        <Loader className="animate-spin h-5 w-5 text-gray-800" />
+                    ) : !isSignedIn ? (
                         <Button onClick={() => window.location.href = '/sign-in'} className="bg-green-600 hover:bg-green-700 text-white text-sm md:text-base">
                             Login
                             <LogIn className="ml-1 md:ml-2 h-4 w-4 md:h-5 md:w-5" />
