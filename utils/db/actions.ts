@@ -1,5 +1,5 @@
 import { db } from "./dbConfig";
-import { Notification, Reward, Transaction, Users } from "./schema";
+import { Notification, Reports, Rewards, Transaction, Users } from "./schema";
 import { eq, sql, and, desc } from "drizzle-orm";
 
 export async function createUser(email: string, name: string) {
@@ -76,5 +76,95 @@ export async function markNotificationAsRead(notificationId: number) {
         await db.update(Notification).set({ isRead: true }).where(eq(Notification.id, notificationId)).execute();
     } catch (error) {
         console.error('Error marking notification as read', error)
+    }
+}
+
+export async function createReport(
+    userId: number,
+    location: string,
+    wasteType: string,
+    amount: string,
+    imageUrl?: string,
+    verificationResult?: any
+) {
+    try {
+        const [report] = await db
+            .insert(Reports)
+            .values({
+                userId,
+                location,
+                wasteType,
+                amount,
+                imageUrl,
+                verificationResult,
+                status: "pending",
+            })
+            .returning()
+            .execute();
+
+        // Award 10 points for reporting waste
+        const pointsEarned = 10;
+        await updateRewardPoints(userId, pointsEarned);
+
+        // // Create a transaction for the earned points
+        await createTransaction(userId, 'earned_report', pointsEarned, 'Points earned for reporting waste');
+
+        // // Create a notification for the user
+        await createNotification(
+            userId,
+            `You've earned ${pointsEarned} points for reporting waste!`,
+            'reward'
+        );
+
+        return report;
+    } catch (error) {
+        console.error("Error creating report:", error);
+        return null;
+    }
+}
+
+export async function updateRewardPoints(userId: number, pointsToAdd: number) {
+    try {
+        const [updatedReward] = await db
+            .update(Rewards)
+            .set({
+                points: sql`${Rewards.points} + ${pointsToAdd}`,
+                updatedAt: new Date()
+            })
+            .where(eq(Rewards.userId, userId))
+            .returning()
+            .execute();
+        return updatedReward;
+    } catch (error) {
+        console.error("Error updating reward points:", error);
+        return null;
+    }
+}
+
+export async function createTransaction(userId: number, type: 'earned_report' | 'earned_collect' | 'redeemed', amount: number, description: string) {
+    try {
+        const [transaction] = await db
+            .insert(Transaction)
+            .values({ userId, type, amount, description })
+            .returning()
+            .execute();
+        return transaction;
+    } catch (error) {
+        console.error("Error creating transaction:", error);
+        throw error;
+    }
+}
+
+export async function createNotification(userId: number, message: string, type: string) {
+    try {
+        const [notification] = await db
+            .insert(Notification)
+            .values({ userId, message, title: type })
+            .returning()
+            .execute();
+        return notification;
+    } catch (error) {
+        console.error("Error creating notification:", error);
+        return null;
     }
 }

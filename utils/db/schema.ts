@@ -14,13 +14,13 @@ export const Reports = pgTable('reports', {
   wasteType: varchar('waste_type', { length: 255 }).notNull(),
   amount: varchar('amount', { length: 255 }).notNull(),
   imageUrl: text('image_url'),
-  verificationresult: jsonb('verification_result'),
+  verificationResult: jsonb('verification_result'),
   status: varchar('status', { length: 255 }).notNull().default('pending'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   collectorId: integer('collector_id').references(() => Users.id),
 });
 
-export const Reward = pgTable('reward', {
+export const Rewards = pgTable('reward', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').references(() => Users.id).notNull(),
   points: integer('points').notNull().default(0),
