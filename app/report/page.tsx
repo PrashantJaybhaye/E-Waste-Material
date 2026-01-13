@@ -16,7 +16,7 @@ const googleMapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 const libraries: Libraries = ['places'];
 
 export default function ReportPage() {
-    const [user, setUser] = useState('');
+    const [user, setUser] = useState('') as any;
     const router = useRouter();
 
     const [reports, setReports] = useState<Array<{
