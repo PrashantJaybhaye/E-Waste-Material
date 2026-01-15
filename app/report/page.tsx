@@ -45,11 +45,30 @@ export default function ReportPage() {
 
     const [searchBox, setSearchBox] = useState<google.maps.places.SearchBox | null>(null);
 
-    const { isLoaded } = useJsApiLoader({
+    const [libraryLoadError, setLibraryLoadError] = useState(false);
+
+    const { isLoaded, loadError } = useJsApiLoader({
         id: 'google-map-script',
         googleMapsApiKey: googleMapsApiKey!,
         libraries: libraries
     });
+
+    useEffect(() => {
+        // Handle Google Maps authentication failure globally
+        // This is necessary because some API key errors don't trigger the loadError from useJsApiLoader
+        const originalAuthFailure = (window as any).gm_authFailure; // Save original if any
+
+        (window as any).gm_authFailure = () => {
+            setLibraryLoadError(true);
+            toast.error('Google Maps configuration error. Switching to manual location entry.');
+            if (originalAuthFailure) originalAuthFailure();
+        };
+
+        return () => {
+            // Cleanup
+            (window as any).gm_authFailure = originalAuthFailure;
+        };
+    }, []);
 
     const onLoad = useCallback((ref: google.maps.places.SearchBox) => {
         setSearchBox(ref);
@@ -101,8 +120,6 @@ export default function ReportPage() {
 
         try {
             const genAI = new GoogleGenerativeAI(geminiApiKey!);
-            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
             const base64Data = await readFileAsBase64(file);
 
             const imageParts = [
@@ -116,7 +133,7 @@ export default function ReportPage() {
 
             const prompt = `You are an expert in waste management and recycling. Analyze this image and provide:
             1. The type of waste (e.g., plastic, paper, glass, metal, organic)
-            2. An estimate of the quantity or amount (in kg or liters)
+            2. An estimate of the quantity or amount (in kg, grams or liters)
             3. Your confidence level in this assessment (as a percentage)
             
             Respond in JSON format like this:
@@ -126,12 +143,45 @@ export default function ReportPage() {
                 "confidence": confidence level as a number between 0 and 1
             }`;
 
-            const result = await model.generateContent([prompt, ...imageParts]);
-            const response = await result.response;
-            const text = response.text();
+            // Actually, based on previous errors, 1.5 versions might be missing for this key.
+            // Let's use the explicit list from the API discovery:
+            const refinedModelNames = [
+                "gemini-3-pro-preview", // Latest experimental high accuracy
+                "gemini-3-flash-preview", // Latest experimental fast
+            ];
+
+            // Overwrite modelNames for execution
+            const modelsToTry = refinedModelNames;
+
+            let text = '';
+            let lastError = null;
+            let success = false;
+
+            for (const modelName of modelsToTry) {
+                try {
+                    console.log(`Attempting verification with model: ${modelName}`);
+                    const model = genAI.getGenerativeModel({ model: modelName });
+                    const result = await model.generateContent([prompt, ...imageParts]);
+                    const response = await result.response;
+                    text = response.text();
+                    success = true;
+                    break; // Exit loop on success
+                } catch (error: any) {
+                    console.warn(`Model ${modelName} failed:`, error.message);
+                    lastError = error;
+                    // If it's a 429, we might want to wait a bit, but for now we just try the next model
+                    // checking if it is a 404 (not found) or 429 (quota)
+                }
+            }
+
+            if (!success) {
+                throw lastError || new Error("All models failed to generate content");
+            }
 
             try {
-                const parsedResult = JSON.parse(text);
+                // Sanitize the text to remove markdown code blocks if present
+                const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                const parsedResult = JSON.parse(cleanedText);
                 if (parsedResult.wasteType && parsedResult.quantity && parsedResult.confidence) {
                     setVerificationResult(parsedResult);
                     setVerificationStatus('success');
@@ -148,9 +198,16 @@ export default function ReportPage() {
                 console.error('Error parsing JSON response:', error)
                 setVerificationStatus('failure')
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error verifying report:', error)
             setVerificationStatus('failure')
+            // Enhanced error handling
+            const errorMessage = error.message || '';
+            if (errorMessage.includes('429') || errorMessage.includes('Quota')) {
+                toast.error('Usage limit exceeded for all available models. Please try again later.');
+            } else {
+                toast.error('Verification failed. Please try again.');
+            }
         }
     }
 
@@ -286,7 +343,7 @@ export default function ReportPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                     <div>
                         <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                        {isLoaded ? (
+                        {isLoaded && !loadError && !libraryLoadError ? (
                             <StandaloneSearchBox
                                 onLoad={onLoad}
                                 onPlacesChanged={onPlacesChanged}
