@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react';
-import { MapPin, Upload, CheckCircle, Loader } from 'lucide-react'
+import { MapPin, Upload, CheckCircle, Loader, FileText, Weight } from 'lucide-react'
 import { Button } from '@/components/ui/button';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { useRouter } from 'next/navigation';
@@ -72,6 +72,12 @@ export default function ReportPage() {
     const handleVerify = async () => {
         if (!file) return
 
+        if (!geminiApiKey) {
+            console.error("Gemini API key not found");
+            toast.error("API key not found. Please check your environment variables.");
+            return;
+        }
+
         setVerificationStatus('verifying')
 
         try {
@@ -99,8 +105,6 @@ export default function ReportPage() {
                 "confidence": confidence level as a number between 0 and 1
             }`;
 
-            // Actually, based on previous errors, 1.5 versions might be missing for this key.
-            // Let's use the explicit list from the API discovery:
             const refinedModelNames = [
                 "gemini-3-pro-preview", // Latest experimental high accuracy
                 "gemini-3-flash-preview", // Latest experimental fast
@@ -125,8 +129,6 @@ export default function ReportPage() {
                 } catch (error: any) {
                     console.warn(`Model ${modelName} failed:`, error.message);
                     lastError = error;
-                    // If it's a 429, we might want to wait a bit, but for now we just try the next model
-                    // checking if it is a 404 (not found) or 429 (quota)
                 }
             }
 
@@ -162,7 +164,8 @@ export default function ReportPage() {
             if (errorMessage.includes('429') || errorMessage.includes('Quota')) {
                 toast.error('Usage limit exceeded for all available models. Please try again later.');
             } else {
-                toast.error('Verification failed. Please try again.');
+                toast.error(`Verification failed: ${errorMessage}`);
+                console.error('Verification failed:', errorMessage);
             }
         }
     }
@@ -306,31 +309,41 @@ export default function ReportPage() {
                     </div>
                     <div>
                         <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-1">Waste Type</label>
-                        <input
-                            type="text"
-                            id="type"
-                            name="type"
-                            value={newReport.type}
-                            onChange={handleInputChange}
-                            required
-                            className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-300 bg-gray-100"
-                            placeholder="Verified waste type"
-                            readOnly
-                        />
+                        <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <FileText className="h-5 w-5 text-gray-400" />
+                            </div>
+                            <input
+                                type="text"
+                                id="type"
+                                name="type"
+                                value={newReport.type}
+                                onChange={handleInputChange}
+                                required
+                                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-300 bg-gray-100"
+                                placeholder="Verified waste type"
+                                readOnly
+                            />
+                        </div>
                     </div>
                     <div>
                         <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-1">Estimated Amount</label>
-                        <input
-                            type="text"
-                            id="amount"
-                            name="amount"
-                            value={newReport.amount}
-                            onChange={handleInputChange}
-                            required
-                            className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-300 bg-gray-100"
-                            placeholder="Verified amount"
-                            readOnly
-                        />
+                        <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <Weight className="h-5 w-5 text-gray-400" />
+                            </div>
+                            <input
+                                type="text"
+                                id="amount"
+                                name="amount"
+                                value={newReport.amount}
+                                onChange={handleInputChange}
+                                required
+                                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-300 bg-gray-100"
+                                placeholder="Verified amount"
+                                readOnly
+                            />
+                        </div>
                     </div>
                 </div>
                 <Button

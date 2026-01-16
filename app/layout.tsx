@@ -8,6 +8,7 @@ import Header from "@/components/Header"
 import { ClerkProvider } from "@clerk/nextjs"
 import { usePathname } from "next/navigation"
 import Sidebar from "@/components/Sidebar"
+import { getAvailableRewards, getUserByEmail } from "@/utils/db/actions"
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -21,6 +22,28 @@ export default function RootLayout({
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [totalEarning, setTotalEarning] = useState(0)
+
+  useEffect(() => {
+    const fetchTotalEarnings = async () => {
+      try {
+        const userEmail = localStorage.getItem('userEmail')
+        if (userEmail) {
+          const user = await getUserByEmail(userEmail)
+          console.log('user from layout', user);
+
+          if (user) {
+            const availableRewards = await getAvailableRewards(user.id) as any
+            console.log('availableRewards from layout', availableRewards);
+            setTotalEarning(availableRewards)
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching total earnings:', error)
+      }
+    }
+
+    fetchTotalEarnings()
+  }, [])
 
   return (
     <ClerkProvider>
