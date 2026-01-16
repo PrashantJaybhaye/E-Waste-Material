@@ -4,16 +4,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { MapPin, Upload, CheckCircle, Loader } from 'lucide-react'
 import { Button } from '@/components/ui/button';
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { StandaloneSearchBox, useJsApiLoader } from '@react-google-maps/api'
-import { Libraries } from '@react-google-maps/api';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast'
 import { createReport, createUser, getRecentReports, getUserByEmail } from '@/utils/db/actions';
+import LocationSearch from '@/components/LocationSearch';
 
 const geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-const googleMapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-
-const libraries: Libraries = ['places'];
 
 export default function ReportPage() {
     const [user, setUser] = useState('') as any;
@@ -43,53 +39,13 @@ export default function ReportPage() {
     } | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
 
-    const [searchBox, setSearchBox] = useState<google.maps.places.SearchBox | null>(null);
-
-    const [libraryLoadError, setLibraryLoadError] = useState(false);
-
-    const { isLoaded, loadError } = useJsApiLoader({
-        id: 'google-map-script',
-        googleMapsApiKey: googleMapsApiKey!,
-        libraries: libraries
-    });
-
-    useEffect(() => {
-        // Handle Google Maps authentication failure globally
-        // This is necessary because some API key errors don't trigger the loadError from useJsApiLoader
-        const originalAuthFailure = (window as any).gm_authFailure; // Save original if any
-
-        (window as any).gm_authFailure = () => {
-            setLibraryLoadError(true);
-            toast.error('Google Maps configuration error. Switching to manual location entry.');
-            if (originalAuthFailure) originalAuthFailure();
-        };
-
-        return () => {
-            // Cleanup
-            (window as any).gm_authFailure = originalAuthFailure;
-        };
-    }, []);
-
-    const onLoad = useCallback((ref: google.maps.places.SearchBox) => {
-        setSearchBox(ref);
-    }, []);
-
-    const onPlacesChanged = () => {
-        if (searchBox) {
-            const places = searchBox.getPlaces();
-            if (places && places.length > 0) {
-                const place = places[0];
-                setNewReport(prev => ({
-                    ...prev,
-                    location: place.formatted_address || '',
-                }));
-            }
-        }
-    };
-
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target
         setNewReport({ ...newReport, [name]: value })
+    }
+
+    const handleLocationSelect = (location: string) => {
+        setNewReport({ ...newReport, location: location });
     }
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -343,34 +299,10 @@ export default function ReportPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                     <div>
                         <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                        {isLoaded && !loadError && !libraryLoadError ? (
-                            <StandaloneSearchBox
-                                onLoad={onLoad}
-                                onPlacesChanged={onPlacesChanged}
-                            >
-                                <input
-                                    type="text"
-                                    id="location"
-                                    name="location"
-                                    value={newReport.location}
-                                    onChange={handleInputChange}
-                                    required
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-300"
-                                    placeholder="Enter waste location"
-                                />
-                            </StandaloneSearchBox>
-                        ) : (
-                            <input
-                                type="text"
-                                id="location"
-                                name="location"
-                                value={newReport.location}
-                                onChange={handleInputChange}
-                                required
-                                className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-300"
-                                placeholder="Enter waste location"
-                            />
-                        )}
+                        <LocationSearch
+                            onLocationSelect={handleLocationSelect}
+                            initialValue={newReport.location}
+                        />
                     </div>
                     <div>
                         <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-1">Waste Type</label>
