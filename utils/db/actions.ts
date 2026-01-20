@@ -40,7 +40,7 @@ export async function getUnreadNotifications(userId: number) {
 }
 
 export async function getUserBalance(userId: number): Promise<number> {
-    const transactions = await getRewardTransactions(userId) || [];
+    const transactions = await getRewardTransactions(userId);
 
     if (!transactions) return 0;
     const balance = transactions.reduce((acc: number, transaction: any) => {
@@ -67,7 +67,7 @@ export async function getRewardTransactions(userId: number) {
         return formattedTransactions;
     } catch (error) {
         console.error('Error fetching reward transactions', error)
-        return null;
+        return [];
     }
 }
 
@@ -316,5 +316,99 @@ export async function saveCollectedWaste(reportId: number, collectorId: number, 
     } catch (error) {
         console.error("Error saving collected waste:", error);
         throw error;
+    }
+}
+
+export async function redeemReward(userId: number, rewardId: number) {
+    try {
+        const userReward = await getOrCreateReward(userId) as any;
+
+        if (rewardId === 0) {
+            // Redeem all points
+            const [updatedReward] = await db.update(Rewards)
+                .set({
+                    points: 0,
+                    updatedAt: new Date(),
+                })
+                .where(eq(Rewards.userId, userId))
+                .returning()
+                .execute();
+
+            // Create a transaction for this redemption
+            await createTransaction(userId, 'redeemed', userReward.points, `Redeemed all points: ${userReward.points}`);
+
+            return updatedReward;
+        } else {
+            // Existing logic for redeeming specific rewards
+            const availableReward = await db.select().from(Rewards).where(eq(Rewards.id, rewardId)).execute();
+
+            if (!userReward || !availableReward[0] || userReward.points < availableReward[0].points) {
+                throw new Error("Insufficient points or invalid reward");
+            }
+
+            const [updatedReward] = await db.update(Rewards)
+                .set({
+                    points: sql`${Rewards.points} - ${availableReward[0].points}`,
+                    updatedAt: new Date(),
+                })
+                .where(eq(Rewards.userId, userId))
+                .returning()
+                .execute();
+
+            // Create a transaction for this redemption
+            await createTransaction(userId, 'redeemed', availableReward[0].points, `Redeemed: ${availableReward[0].name}`);
+
+            return updatedReward;
+        }
+    } catch (error) {
+        console.error("Error redeeming reward:", error);
+        throw error;
+    }
+}
+
+export async function getOrCreateReward(userId: number) {
+    try {
+        let [reward] = await db.select().from(Rewards).where(eq(Rewards.userId, userId)).execute();
+        if (!reward) {
+            [reward] = await db.insert(Rewards).values({
+                userId,
+                name: 'Default Reward',
+                collectioninfo: 'Default Collection Info',
+                points: 0,
+                isAvailable: true,
+            }).returning().execute();
+        }
+        return reward;
+    } catch (error) {
+        console.error("Error getting or creating reward:", error);
+        return null;
+    }
+}
+
+export async function getAllRewards() {
+    try {
+        const rewards = await db
+            .select({
+                id: Rewards.id,
+                userId: Rewards.userId,
+                points: Rewards.points,
+                createdAt: Rewards.createdAt,
+                userName: Users.name,
+            })
+            .from(Rewards)
+            .leftJoin(Users, eq(Rewards.userId, Users.id))
+            .orderBy(desc(Rewards.points))
+            .execute();
+
+        return rewards.map(reward => {
+            const level = Math.floor(reward.points / 20) + 1; // Basic level calculation
+            return {
+                ...reward,
+                level
+            };
+        });
+    } catch (error) {
+        console.error("Error fetching all rewards:", error);
+        return [];
     }
 }
