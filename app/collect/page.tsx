@@ -139,7 +139,6 @@ function page() {
 
         try {
             const genAI = new GoogleGenerativeAI(geminiApiKey!)
-            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
 
             const base64Data = readFileAsBase64(verificationImage)
 
@@ -164,12 +163,40 @@ function page() {
           "confidence": confidence level as a number between 0 and 1
         }`
 
-            const result = await model.generateContent([prompt, ...imageParts])
-            const response = await result.response
-            const text = response.text()
+            const modelNames = [
+                "gemini-3-flash-preview",
+                "gemini-3-pro-preview",
+                "gemini-1.5-flash",
+                "gemini-1.5-pro",
+                "gemini-1.5-flash-001",
+                "gemini-1.5-pro-001"
+            ];
+
+            let text = '';
+            let success = false;
+
+            for (const modelName of modelNames) {
+                try {
+                    const model = genAI.getGenerativeModel({ model: modelName })
+                    const result = await model.generateContent([prompt, ...imageParts])
+                    const response = await result.response
+                    text = response.text()
+                    if (text) {
+                        success = true;
+                        break;
+                    }
+                } catch (error) {
+                    console.warn(`Model ${modelName} failed:`, error);
+                }
+            }
+
+            if (!success) {
+                throw new Error("All models failed verification");
+            }
 
             try {
-                const parsedResult = JSON.parse(text)
+                const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                const parsedResult = JSON.parse(cleanedText);
                 setVerificationResult({
                     wasteTypeMatch: parsedResult.wasteTypeMatch,
                     quantityMatch: parsedResult.quantityMatch,
