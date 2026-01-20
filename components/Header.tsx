@@ -107,7 +107,7 @@ export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
     }
 
     return (
-        <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <header className="bg-white border-b border-gray-200 fixed w-full top-0 z-50">
             <div className="flex items-center justify-between px-4 py-2">
                 <div className="flex items-center">
                     <Button
@@ -120,7 +120,7 @@ export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
                     </Button>
                     <Link href="/" className="flex items-center">
                         <Leaf className="h-6 w-6 md:h-8 md:w-8 text-green-500 mr-1 md:mr-2" />
-                        <span className="font-bold text-base md:text-lg text-gray-800">E-Waste Material</span>
+                        <span className="font-bold text-base md:text-lg text-gray-800">Waste Material</span>
                     </Link>
                 </div>
                 {!isMobile && (

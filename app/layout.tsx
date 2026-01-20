@@ -18,7 +18,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
-  const isAuthPage = pathname?.startsWith('/sign-in') || pathname?.startsWith('/sign-up')
+
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [totalEarning, setTotalEarning] = useState(0)
@@ -50,17 +50,15 @@ export default function RootLayout({
       <html lang="en">
         <body className={inter.className} suppressHydrationWarning>
           <div className="min-h-screen bg-gray-50 flex flex-col">
-            {/* Header - Hidden on auth pages */}
-            {!isAuthPage && (
-              <Header
-                onMenuClick={() => setSidebarOpen(!sidebarOpen)}
-                totalEarnings={totalEarning}
-              />
-            )}
+            {/* Header */}
+            <Header
+              onMenuClick={() => setSidebarOpen(!sidebarOpen)}
+              totalEarnings={totalEarning}
+            />
             <div className="flex flex-1">
-              {/* Sidebar container - margins removed on auth pages */}
+              {/* Sidebar container */}
               <Sidebar open={sidebarOpen} />
-              <main className={`flex-1 p-4 lg:p-8 transition-all duration-300 ${!isAuthPage ? 'ml-0 lg:ml-64' : ''}`}>
+              <main className="flex-1 p-4 lg:p-8 pt-20 transition-all duration-300 ml-0 lg:ml-64 flex flex-col">
                 {children}
               </main>
             </div>
