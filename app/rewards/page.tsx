@@ -149,9 +149,9 @@ const RewardsPage = () => {
         <div className="p-8 max-w-4xl mx-auto">
             <h1 className="text-3xl font-semibold mb-6 text-gray-800">Rewards</h1>
 
-            <div className="bg-white p-6 rounded-xl shadow-lg flex flex-col justify-between h-full border-l-4 border-green-500 mb-8">
+            <div className="bg-white p-6 rounded-xl shadow-lg flex flex-col justify-between border-l-4 border-green-500 mb-8">
                 <h2 className="text-xl font-semibold mb-4 text-gray-800">Reward Balance</h2>
-                <div className="flex items-center justify-between mt-auto">
+                <div className="flex items-center justify-between mt-4">
                     <div className="flex items-center">
                         <Coins className="w-10 h-10 mr-3 text-green-500" />
                         <div>
