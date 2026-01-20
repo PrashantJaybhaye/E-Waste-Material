@@ -48,7 +48,7 @@ export default function LeaderboardPage() {
     }, [])
 
     return (
-        <div className="">
+        <div className="pt-32">
             <div className="max-w-3xl mx-auto">
                 <h1 className="text-3xl font-semibold mb-6 text-gray-800">Leaderboard </h1>
 

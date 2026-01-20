@@ -237,7 +237,7 @@ export default function ReportPage() {
     }, [router]);
 
     return (
-        <div className="p-8 max-w-4xl mx-auto">
+        <div className="pt-32 px-8 pb-8 max-w-4xl mx-auto">
             <h1 className="text-3xl font-semibold mb-6 text-gray-800">Report waste</h1>
 
             <form onSubmit={handleSubmit} className="bg-white p-8 rounded-2xl shadow-lg mb-12">
@@ -361,26 +361,41 @@ export default function ReportPage() {
             </form>
 
             <h2 className="text-3xl font-semibold mb-6 text-gray-800">Recent Reports</h2>
-            <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
+                <div className="bg-gradient-to-r from-green-500 to-green-600 p-6">
+                    <h2 className="text-xl font-semibold text-white">Recent Reports</h2>
+                </div>
                 <div className="max-h-96 overflow-y-auto">
                     <table className="w-full">
                         <thead className="bg-gray-50 sticky top-0">
                             <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Location</th>
+                                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
+                                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
+                                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-200">
+                        <tbody className="divide-y divide-gray-100">
                             {reports.map((report) => (
                                 <tr key={report.id} className="hover:bg-gray-50 transition-colors duration-200">
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        <MapPin className="inline-block w-4 h-4 mr-2 text-green-500" />
-                                        {report.location}
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                        <div className="flex items-center">
+                                            <MapPin className="w-4 h-4 mr-2 text-green-500" />
+                                            {report.location}
+                                        </div>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{report.wasteType}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{report.amount}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                        <div className="flex items-center">
+                                            <FileText className="w-4 h-4 mr-2 text-blue-500" />
+                                            {report.wasteType}
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                        <div className="flex items-center">
+                                            <Weight className="w-4 h-4 mr-2 text-purple-500" />
+                                            {report.amount}
+                                        </div>
+                                    </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{report.createdAt}</td>
                                 </tr>
                             ))}

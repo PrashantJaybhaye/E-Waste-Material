@@ -58,7 +58,7 @@ export default function RootLayout({
             <div className="flex flex-1">
               {/* Sidebar container */}
               <Sidebar open={sidebarOpen} />
-              <main className="flex-1 p-4 lg:p-8 pt-20 transition-all duration-300 ml-0 lg:ml-64 flex flex-col">
+              <main className="flex-1 p-4 lg:p-8 transition-all duration-300 ml-0 lg:ml-64 flex flex-col">
                 {children}
               </main>
             </div>

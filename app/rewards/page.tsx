@@ -146,7 +146,7 @@ const RewardsPage = () => {
     }
 
     return (
-        <div className="p-8 max-w-4xl mx-auto">
+        <div className="pt-32 px-8 pb-8 max-w-4xl mx-auto">
             <h1 className="text-3xl font-semibold mb-6 text-gray-800">Rewards</h1>
 
             <div className="bg-white p-6 rounded-xl shadow-lg flex flex-col justify-between border-l-4 border-green-500 mb-8">

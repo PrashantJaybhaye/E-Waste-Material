@@ -248,20 +248,20 @@ function page() {
     )
 
     return (
-        <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
+        <div className="pt-32 px-8 pb-8 max-w-4xl mx-auto">
             <h1 className="text-3xl font-semibold mb-6 text-gray-800">Waste Collection Tasks</h1>
 
-            <div className="mb-4 flex items-center">
+            <div className="mb-4 flex items-center bg-white rounded-2xl shadow-sm p-2 border border-gray-100 max-w-xl">
+                <Search className="h-5 w-5 text-gray-400 ml-2" />
                 <Input
                     type="text"
                     placeholder="Search by area..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="mr-2"
+                    className="flex-grow border-none focus:ring-0 focus:outline-none focus:ring-offset-0 px-4 text-gray-700 placeholder-gray-400 bg-transparent shadow-none"
+                    style={{ outline: 'none', boxShadow: 'none' }} // Force remove default styles
+                    autoFocus={false}
                 />
-                <Button variant="outline" size="icon">
-                    <Search className="h-4 w-4" />
-                </Button>
             </div>
 
             {loading ? (
@@ -272,7 +272,7 @@ function page() {
                 <>
                     <div className="space-y-4">
                         {paginatedTasks.map(task => (
-                            <div key={task.id} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                            <div key={task.id} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 cursor-pointer">
                                 <div className="flex justify-between items-center mb-2">
                                     <h2 className="text-lg font-medium text-gray-800 flex items-center">
                                         <MapPin className="w-5 h-5 mr-2 text-gray-500" />

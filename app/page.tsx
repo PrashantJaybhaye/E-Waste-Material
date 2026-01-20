@@ -79,7 +79,7 @@ export default function Home() {
   };
 
   return (
-    <div className={`container mx-auto px-4 py-16 ${poppins.className}`}>
+    <div className={`container mx-auto px-4 pt-32 pb-16 ${poppins.className}`}>
       <section className="text-center mb-20">
         <AnimatedGlobe />
         <h1 className="text-6xl font-bold mb-6 text-gray-800 tracking-tight">
