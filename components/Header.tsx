@@ -51,15 +51,25 @@ export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
                     }
 
                     // Fetch user data immediately after ensuring user exists
-                    const dbUser = await getUserByEmail(email)
-                    if (dbUser) {
-                        const unreadNotifications = await getUnreadNotifications(dbUser.id)
-                        setNotification(unreadNotifications || [])
-                        const userBalance = await getUserBalance(dbUser.id)
-                        setBalance(userBalance)
+                    try {
+                        const dbUser = await getUserByEmail(email)
+                        if (dbUser) {
+                            const unreadNotifications = await getUnreadNotifications(dbUser.id)
+                            setNotification(unreadNotifications || [])
+                            const userBalance = await getUserBalance(dbUser.id)
+                            setBalance(userBalance)
+                        }
+                    } catch (error) {
+                        console.error('Error fetching user data:', error)
+                        // Set safe fallback values to prevent UI inconsistencies
+                        setNotification([])
+                        setBalance(0)
+                    } finally {
+                        setLoading(false)
                     }
+                } else {
+                    setLoading(false)
                 }
-                setLoading(false)
             } else {
                 setLoading(false)
             }
@@ -72,10 +82,14 @@ export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
             if (isSignedIn && user) {
                 const email = user.primaryEmailAddress?.emailAddress;
                 if (email) {
-                    const dbUser = await getUserByEmail(email)
-                    if (dbUser) {
-                        const unreadNotifications = await getUnreadNotifications(dbUser.id)
-                        setNotification(unreadNotifications || [])
+                    try {
+                        const dbUser = await getUserByEmail(email)
+                        if (dbUser) {
+                            const unreadNotifications = await getUnreadNotifications(dbUser.id)
+                            setNotification(unreadNotifications || [])
+                        }
+                    } catch (error) {
+                        console.error('Error fetching notifications:', error)
                     }
                 }
             }
@@ -83,9 +97,12 @@ export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
         // Initial fetch is handled in the syncUser effect, but we keep this for interval
         // fetchNotifications(); // Removed initial call to avoid double fetching/racing
 
-        const notificationInterval = setInterval(fetchNotifications, 30000);
-        return () => clearInterval(notificationInterval);
-    }, [isSignedIn, user])
+        // Only start polling when Clerk is loaded and user is signed in
+        if (isLoaded && isSignedIn && user) {
+            const notificationInterval = setInterval(fetchNotifications, 30000);
+            return () => clearInterval(notificationInterval);
+        }
+    }, [isLoaded, isSignedIn, user])
 
 
     useEffect(() => {
@@ -103,7 +120,20 @@ export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
     }, [])
 
     const handleNotificationClick = async (notificationId: number) => {
-        await markNotificationAsRead(notificationId)
+        // Optimistically update local state - remove notification immediately
+        const previousNotifications = notification;
+        setNotification(prevNotifications =>
+            prevNotifications.filter(n => n.id !== notificationId)
+        );
+
+        try {
+            // Call API to mark as read in the database
+            await markNotificationAsRead(notificationId);
+        } catch (error) {
+            console.error('Error marking notification as read:', error);
+            // Rollback to previous state if API call fails
+            setNotification(previousNotifications);
+        }
     }
 
     return (
@@ -158,14 +188,14 @@ export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-64">
                             {notification.length > 0 ? (
-                                notification.map((notification: any) => (
+                                notification.map((n: Notification) => (
                                     <DropdownMenuItem
-                                        key={notification.id}
-                                        onClick={() => handleNotificationClick(notification.id)}
+                                        key={n.id}
+                                        onClick={() => handleNotificationClick(n.id)}
                                     >
                                         <div className="flex flex-col">
-                                            <span className="font-medium">{notification.type}</span>
-                                            <span className="text-sm text-gray-500">{notification.message}</span>
+                                            <span className="font-medium">{n.title}</span>
+                                            <span className="text-sm text-gray-500">{n.message}</span>
                                         </div>
                                     </DropdownMenuItem>
                                 ))

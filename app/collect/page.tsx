@@ -44,7 +44,7 @@ function StatusBadge({ status }: { status: CollectionTask['status'] }) {
 function page() {
     const [tasks, setTasks] = useState<CollectionTask[]>([])
     const [loading, setLoading] = useState(true)
-    const [hoveredWasteType, setHoveredWasteType] = useState<string | null>(null)
+    const [hoveredTaskId, setHoveredTaskId] = useState<number | null>(null)
     const [searchTerm, setSearchTerm] = useState('')
     const [currentPage, setCurrentPage] = useState(1)
     const [user, setUser] = useState<{ id: number; email: string; name: string } | null>(null)
@@ -137,16 +137,28 @@ function page() {
 
         setVerificationStatus('verifying')
 
+        // Guard clause: Check if API key is present
+        if (!geminiApiKey) {
+            console.error('Gemini API key is not configured')
+            toast.error('AI verification is not configured. Please contact support.')
+            setVerificationStatus('failure')
+            return
+        }
+
         try {
-            const genAI = new GoogleGenerativeAI(geminiApiKey!)
+            const genAI = new GoogleGenerativeAI(geminiApiKey)
 
             const base64Data = readFileAsBase64(verificationImage)
+
+            // Extract MIME type from data URL (format: data:image/png;base64,...)
+            const mimeTypeMatch = verificationImage.match(/^data:([^;]+);base64,/)
+            const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'image/jpeg' // Fallback to jpeg if not found
 
             const imageParts = [
                 {
                     inlineData: {
                         data: base64Data,
-                        mimeType: 'image/jpeg', // Adjust this if you know the exact type
+                        mimeType: mimeType,
                     },
                 },
             ]
@@ -331,13 +343,13 @@ function page() {
                                     <div className="flex items-center relative">
                                         <Trash2 className="w-4 h-4 mr-2 text-gray-500" />
                                         <span
-                                            onMouseEnter={() => setHoveredWasteType(task.wasteType)}
-                                            onMouseLeave={() => setHoveredWasteType(null)}
+                                            onMouseEnter={() => setHoveredTaskId(task.id)}
+                                            onMouseLeave={() => setHoveredTaskId(null)}
                                             className="cursor-pointer"
                                         >
                                             {task.wasteType.length > 8 ? `${task.wasteType.slice(0, 8)}...` : task.wasteType}
                                         </span>
-                                        {hoveredWasteType === task.wasteType && (
+                                        {hoveredTaskId === task.id && (
                                             <div className="absolute left-0 top-full mt-1 p-2 bg-gray-800 text-white text-xs rounded shadow-lg z-10">
                                                 {task.wasteType}
                                             </div>
@@ -374,20 +386,21 @@ function page() {
                         ))}
                     </div>
 
+
                     <div className="mt-4 flex justify-center">
                         <Button
                             onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                            disabled={currentPage === 1}
+                            disabled={currentPage === 1 || pageCount === 0}
                             className="mr-2"
                         >
                             Previous
                         </Button>
                         <span className="mx-2 self-center">
-                            Page {currentPage} of {pageCount}
+                            Page {filteredTasks.length > 0 ? currentPage : 0} of {pageCount}
                         </span>
                         <Button
                             onClick={() => setCurrentPage(prev => Math.min(prev + 1, pageCount))}
-                            disabled={currentPage === pageCount}
+                            disabled={currentPage === pageCount || pageCount === 0}
                             className="ml-2"
                         >
                             Next
@@ -446,7 +459,17 @@ function page() {
                         {verificationStatus === 'failure' && (
                             <p className="mt-2 text-red-600 text-center text-sm">Verification failed. Please try again.</p>
                         )}
-                        <Button onClick={() => setSelectedTask(null)} variant="outline" className="w-full mt-2">
+                        <Button
+                            onClick={() => {
+                                setSelectedTask(null)
+                                setVerificationImage(null)
+                                setVerificationStatus('idle')
+                                setVerificationResult(null)
+                                setReward(null)
+                            }}
+                            variant="outline"
+                            className="w-full mt-2"
+                        >
                             Close
                         </Button>
                     </div>

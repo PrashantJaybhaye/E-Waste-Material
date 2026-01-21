@@ -311,6 +311,7 @@ export async function saveCollectedWaste(reportId: number, collectorId: number, 
                 collectorId,
                 collectionDate: new Date(),
                 status: 'verified',
+                verificationResult,
             })
             .returning()
             .execute();
