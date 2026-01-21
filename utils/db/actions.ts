@@ -1,3 +1,5 @@
+'use server'
+
 import { db } from "./dbConfig";
 import { Notification, Reports, Rewards, Transaction, Users, CollectedWaste } from "./schema";
 import { eq, sql, and, desc } from "drizzle-orm";

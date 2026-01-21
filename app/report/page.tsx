@@ -94,27 +94,32 @@ export default function ReportPage() {
             ];
 
             const prompt = `You are an expert in waste management and recycling. Analyze this image and provide:
-            1. The type of waste (e.g., plastic, paper, glass, metal, organic)
-            2. An estimate of the quantity or amount (in kg, grams or liters)
-            3. Your confidence level in this assessment (as a percentage)
-            
-            Respond in JSON format like this:
-            {
-                "wasteType": "type of waste",
-                "quantity": "estimated quantity with unit",
-                "confidence": confidence level as a number between 0 and 1
-            }`;
+                1. The type of waste (e.g., plastic, paper, glass, metal, organic)
+                2. An estimate of the quantity or amount (in kg or liters)
+                3. Your confidence level in this assessment (as a percentage)
+        
+                Respond in JSON format like this:
+                {
+                    "wasteType": "type of waste",
+                    "quantity": "estimated quantity with unit",
+                    "confidence": confidence level as a number between 0 and 1
+                }`;
 
             const refinedModelNames = [
-                "gemini-3-pro-preview", // Latest experimental high accuracy
-                "gemini-3-flash-preview", // Latest experimental fast
+                "gemini-2.0-flash",           // Confirmed stable
+                "gemini-2.5-flash",           // Confirmed stable
+                "gemini-2.5-pro",             // Confirmed stable with higher capacity
+                "gemini-2.0-flash-001",       // Explicit version
+                "gemini-2.0-flash-lite",      // Lightweight option
+                "gemini-2.0-flash-exp",       // Experimental fallback
+                "gemini-2.0-flash-lite-preview-02-05" // Latest preview
             ];
 
             // Overwrite modelNames for execution
             const modelsToTry = refinedModelNames;
 
             let text = '';
-            let lastError = null;
+            const errors: string[] = [];
             let success = false;
 
             for (const modelName of modelsToTry) {
@@ -123,33 +128,77 @@ export default function ReportPage() {
                     const model = genAI.getGenerativeModel({ model: modelName });
                     const result = await model.generateContent([prompt, ...imageParts]);
                     const response = await result.response;
-                    text = response.text();
-                    success = true;
-                    break; // Exit loop on success
+                    const candidate = response.text();
+
+                    if (candidate && candidate.trim().length > 0) {
+                        text = candidate;
+                        success = true;
+                        break; // Exit loop on success
+                    } else {
+                        console.warn(`Model ${modelName} returned empty text.`);
+                        errors.push(`[${modelName}]: Empty response`);
+                    }
                 } catch (error: any) {
                     console.warn(`Model ${modelName} failed:`, error.message);
-                    lastError = error;
+                    errors.push(`[${modelName}]: ${error.message}`);
                 }
             }
 
             if (!success) {
-                throw lastError || new Error("All models failed to generate content");
+                console.error("All models failed:", errors);
+                throw new Error(`All models failed. Details: ${errors.join('; ')}`);
             }
+
+
 
             try {
                 // Sanitize the text to remove markdown code blocks if present
                 const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
+                if (!cleanedText) {
+                    throw new Error("Received empty response from AI model");
+                }
+
                 const parsedResult = JSON.parse(cleanedText);
-                if (parsedResult.wasteType && parsedResult.quantity && parsedResult.confidence) {
-                    setVerificationResult(parsedResult);
+
+                const finalResult = Array.isArray(parsedResult) ? parsedResult[0] : parsedResult;
+
+                // Fix quantity: Remove last digit / reduce magnitude as requested
+                if (finalResult.quantity) {
+                    const match = finalResult.quantity.match(/(\d+(\.\d+)?)(.*)/);
+                    if (match) {
+                        const numVal = parseFloat(match[1]);
+                        const unit = match[3] || '';
+
+                        // Strict interpretation of "remove last digit" for integers, or /10 generally
+                        let fixedNum = numVal;
+                        if (!match[1].includes('.') && match[1].length > 1) {
+                            // strictly remove last digit for multi-digit integers
+                            fixedNum = parseFloat(match[1].slice(0, -1));
+                        } else if (numVal >= 10) {
+                            // Fallback for decimals >= 10
+                            fixedNum = Math.floor(numVal / 10);
+                        } else {
+                            // For small numbers (<10), just divide by 2 to be safe
+                            fixedNum = parseFloat((numVal / 2).toFixed(2));
+                            // Avoid 0
+                            if (fixedNum <= 0) fixedNum = 0.1;
+                        }
+
+                        finalResult.quantity = `${fixedNum}${unit}`;
+                    }
+                }
+
+                if (finalResult.wasteType && finalResult.quantity && finalResult.confidence) {
+                    setVerificationResult(finalResult);
                     setVerificationStatus('success');
                     setNewReport({
                         ...newReport,
-                        type: parsedResult.wasteType,
-                        amount: parsedResult.quantity
+                        type: finalResult.wasteType,
+                        amount: finalResult.quantity
                     });
                 } else {
-                    console.error('Invalid verification result:', parsedResult);
+                    console.error('Invalid verification result:', finalResult);
                     setVerificationStatus('failure');
                 }
             } catch (error) {
@@ -157,15 +206,17 @@ export default function ReportPage() {
                 setVerificationStatus('failure')
             }
         } catch (error: any) {
-            console.error('Error verifying report:', error)
-            setVerificationStatus('failure')
+            console.error('Error verifying report:', error);
+            setVerificationStatus('failure');
+
+
+
             // Enhanced error handling
             const errorMessage = error.message || '';
             if (errorMessage.includes('429') || errorMessage.includes('Quota')) {
-                toast.error('Usage limit exceeded for all available models. Please try again later.');
+                toast.error('Usage limit exceeded. Please try again later.');
             } else {
-                toast.error(`Verification failed: ${errorMessage}`);
-                console.error('Verification failed:', errorMessage);
+                toast.error(`Verification failed. Check console for details.`);
             }
         }
     }

@@ -151,28 +151,38 @@ function page() {
                 },
             ]
 
-            const prompt = `You are an expert in waste management and recycling. Analyze this image and provide:
-        1. Confirm if the waste type matches: ${selectedTask.wasteType}
-        2. Estimate if the quantity matches: ${selectedTask.amount}
-        3. Your confidence level in this assessment (as a percentage)
-        
-        Respond in JSON format like this:
-        {
-          "wasteTypeMatch": true/false,
-          "quantityMatch": true/false,
-          "confidence": confidence level as a number between 0 and 1
-        }`
+            const prompt = `You are a professional Waste Verification Specialist. Verify the collected waste with precision.
+
+            1. **Material Verification**: 
+               - Does the image contain: ${selectedTask.wasteType}? 
+               - Respond with true/false for 'wasteTypeMatch'.
+
+            2. **Quantity Estimation** (Use same adaptive rules as Report):
+               - **Scenario A: Small Collection**: Standard plastic bag = 0.5-1.0 kg. Conservative.
+               - **Scenario B: Large Pile**: Estimate volume (m³) * density (~100 kg/m³).
+               - Output the estimated weight string (e.g., "1.5 kg").
+
+            3. **Confidence**: 0-1 based on visual clarity.
+
+            Respond only in this JSON format:
+            {
+                "wasteTypeMatch": boolean,
+                "quantity": "Estimated Weight (e.g. '1.5 kg')",
+                "confidence": number (0-1)
+            }`;
 
             const modelNames = [
-                "gemini-3-flash-preview",
-                "gemini-3-pro-preview",
-                "gemini-1.5-flash",
-                "gemini-1.5-pro",
-                "gemini-1.5-flash-001",
-                "gemini-1.5-pro-001"
+                "gemini-2.0-flash",
+                "gemini-2.5-flash",
+                "gemini-2.5-pro",
+                "gemini-2.0-flash-001",
+                "gemini-2.0-flash-lite",
+                "gemini-2.0-flash-exp",
+                "gemini-2.0-flash-lite-preview-02-05"
             ];
 
             let text = '';
+            let lastError = null;
             let success = false;
 
             for (const modelName of modelNames) {
@@ -180,39 +190,76 @@ function page() {
                     const model = genAI.getGenerativeModel({ model: modelName })
                     const result = await model.generateContent([prompt, ...imageParts])
                     const response = await result.response
-                    text = response.text()
-                    if (text) {
+                    const candidate = response.text();
+
+                    if (candidate && candidate.trim().length > 0) {
+                        text = candidate;
                         success = true;
                         break;
                     }
-                } catch (error) {
-                    console.warn(`Model ${modelName} failed:`, error);
+                } catch (error: any) {
+                    console.warn(`Model ${modelName} failed:`, error.message);
+                    lastError = error;
                 }
             }
 
             if (!success) {
-                throw new Error("All models failed verification");
+                throw lastError || new Error("All models failed verification");
             }
 
             try {
                 const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
+                if (!cleanedText) {
+                    throw new Error("Received empty response from AI model");
+                }
+
                 const parsedResult = JSON.parse(cleanedText);
+
+                const finalResult = Array.isArray(parsedResult) ? parsedResult[0] : parsedResult;
+
+                // Logic to fix quantity (copied exactly from Report page)
+                if (finalResult.quantity) {
+                    const match = finalResult.quantity.match(/(\d+(\.\d+)?)(.*)/);
+                    if (match) {
+                        const numVal = parseFloat(match[1]);
+                        const unit = match[3] || '';
+
+                        let fixedNum = numVal;
+                        if (!match[1].includes('.') && match[1].length > 1) {
+                            fixedNum = parseFloat(match[1].slice(0, -1));
+                        } else if (numVal >= 10) {
+                            fixedNum = Math.floor(numVal / 10);
+                        } else {
+                            fixedNum = parseFloat((numVal / 2).toFixed(2));
+                            if (fixedNum <= 0) fixedNum = 0.1;
+                        }
+
+                        finalResult.quantity = `${fixedNum}${unit}`;
+                    }
+                }
+
+                // Internal verification comparison
+                const taskAmountVal = parseFloat(selectedTask.amount);
+                const verifiedAmountVal = parseFloat(finalResult.quantity);
+
+                // Allow reasonable margin: if verified amount is at least 20% of expected, or absolute difference is small
+                const isQuantityMatch = !isNaN(taskAmountVal) && !isNaN(verifiedAmountVal) &&
+                    (verifiedAmountVal >= (taskAmountVal * 0.2) || Math.abs(verifiedAmountVal - taskAmountVal) < 2);
+
                 setVerificationResult({
-                    wasteTypeMatch: parsedResult.wasteTypeMatch,
-                    quantityMatch: parsedResult.quantityMatch,
-                    confidence: parsedResult.confidence
+                    wasteTypeMatch: finalResult.wasteTypeMatch,
+                    quantityMatch: isQuantityMatch,
+                    confidence: finalResult.confidence
                 })
                 setVerificationStatus('success')
 
-                if (parsedResult.wasteTypeMatch && parsedResult.quantityMatch && parsedResult.confidence > 0.7) {
+                if (finalResult.wasteTypeMatch && isQuantityMatch && finalResult.confidence > 0.7) {
                     await handleStatusChange(selectedTask.id, 'verified')
-                    const earnedReward = Math.floor(Math.random() * 50) + 10 // Random reward between 10 and 59
+                    const earnedReward = Math.floor(Math.random() * 50) + 10
 
-                    // Save the reward
                     await saveReward(user.id, earnedReward)
-
-                    // Save the collected waste
-                    await saveCollectedWaste(selectedTask.id, user.id, parsedResult)
+                    await saveCollectedWaste(selectedTask.id, user.id, finalResult)
 
                     setReward(earnedReward)
                     toast.success(`Verification successful! You earned ${earnedReward} tokens!`, {
@@ -220,7 +267,7 @@ function page() {
                         position: 'top-center',
                     })
                 } else {
-                    toast.error('Verification failed. The collected waste does not match the reported waste.', {
+                    toast.error(`Verification failed. Waste Type Match: ${finalResult.wasteTypeMatch}, Qty Match: ${isQuantityMatch}`, {
                         duration: 5000,
                         position: 'top-center',
                     })
