@@ -223,7 +223,11 @@ export async function createReport(
 
         await batch.commit();
 
-        return { id: reportRef.id, ...reportData };
+        return {
+            id: reportRef.id,
+            ...reportData,
+            createdAt: reportData.createdAt
+        };
     } catch (error) {
         console.error("Error creating report:", error);
         return null;

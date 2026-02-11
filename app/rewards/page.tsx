@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { Coins, ArrowUpRight, ArrowDownRight, Gift, AlertCircle, Loader } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useUser } from '@clerk/nextjs'
 import { getUserByEmail, getRewardTransactions, getAvailableRewards, redeemReward, createTransaction } from '@/utils/db/actions'
 import { toast } from 'react-hot-toast'
 
@@ -21,6 +22,7 @@ type Reward = {
     collectionInfo: string
 }
 const RewardsPage = () => {
+    const { user: clerkUser, isLoaded: isClerkLoaded } = useUser();
     const [user, setUser] = useState<{ id: string; email: string; name: string } | null>(null)
     const [balance, setBalance] = useState(0)
     const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -29,9 +31,17 @@ const RewardsPage = () => {
 
     useEffect(() => {
         const fetchUserDataAndRewards = async () => {
+            if (!isClerkLoaded) return;
+
+            if (!clerkUser) {
+                setLoading(false);
+                toast.error('Please log in to view rewards.');
+                return;
+            }
+
             setLoading(true)
             try {
-                const userEmail = localStorage.getItem('userEmail')
+                const userEmail = clerkUser.primaryEmailAddress?.emailAddress;
                 if (userEmail) {
                     const fetchedUser = await getUserByEmail(userEmail)
                     if (fetchedUser) {
@@ -45,10 +55,8 @@ const RewardsPage = () => {
                         }, 0)
                         setBalance(Math.max(calculatedBalance, 0)) // Ensure balance is never negative
                     } else {
-                        toast.error('User not found. Please log in again.')
+                        toast.error('User not found in database.')
                     }
-                } else {
-                    toast.error('User not logged in. Please log in.')
                 }
             } catch (error) {
                 console.error('Error fetching user data and rewards:', error)
@@ -59,7 +67,7 @@ const RewardsPage = () => {
         }
 
         fetchUserDataAndRewards()
-    }, [])
+    }, [isClerkLoaded, clerkUser])
 
     const handleRedeemReward = async (rewardId: string) => {
         if (!user) {

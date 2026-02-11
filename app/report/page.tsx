@@ -239,12 +239,17 @@ export default function ReportPage() {
                 verificationResult ? JSON.stringify(verificationResult) : undefined
             ) as any;
 
+            if (!report) {
+                toast.error('Failed to submit report. Please try again.');
+                return;
+            }
+
             const formattedReport = {
                 id: report.id,
                 location: report.location,
                 wasteType: report.wasteType,
                 amount: report.amount,
-                createdAt: report.createdAt.toISOString().split('T')[0]
+                createdAt: report.createdAt instanceof Date ? report.createdAt.toISOString().split('T')[0] : report.createdAt
             };
 
             setReports([formattedReport, ...reports]);
@@ -256,9 +261,9 @@ export default function ReportPage() {
 
 
             toast.success(`Report submitted successfully! You've earned points for reporting waste.`);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error submitting report:', error);
-            toast.error('Failed to submit report. Please try again.');
+            toast.error(error.message || 'Failed to submit report. Please try again.');
         } finally {
             setIsSubmitting(false);
         }
