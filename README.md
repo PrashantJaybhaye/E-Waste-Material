@@ -1,19 +1,21 @@
-# ♻️ E-Waste Management System
 
-A comprehensive, AI-enhanced platform dedicated to streamlining the e-waste collection process. This system bridges the gap between individuals, waste collectors, and recycling organizations by incentivizing responsible waste disposal through a gamified reward structure.
+# ♻️ Zero-to-Hero Waste Management AI App
+
+A comprehensive, AI-enhanced platform dedicated to streamlining the waste collection process along with **E-Waste**. This system bridges the gap between individuals, waste collectors, and recycling organizations by incentivizing responsible waste disposal through a gamified reward structure.
 
 ## 🌟 Overview
 
-The **E-Waste Management System** empowers users to report electronic waste, which is then verified using **Google Gemini AI** to ensure accuracy. Collectors can efficiently locate and pick up reported waste, earning rewards for their efforts. The platform fosters a community of eco-conscious individuals competing on a dynamic leaderboard while making a tangible environmental impact.
+The **Waste Management System** empowers users to report waste, which is then verified using **Google Gemini AI** to ensure accuracy. Collectors can efficiently locate and pick up reported waste, earning rewards for their efforts. The platform fosters a community of eco-conscious individuals competing on a dynamic leaderboard while making a tangible environmental impact.
 
 ## ✨ Key Features
 
 ### 📱 For Users (Reporters)
 
-- **AI Verification**: Automatically identifies and estimates the quantity of waste from uploaded images using Gemini AI.
+- **AI Verification**: Automatically identifies and estimates the quantity of waste from uploaded images using **Google Gemini AI**.
 - **Easy Reporting**: Simple interface to submit waste details, including type, estimated quantity, and precise location.
 - **Reward Points**: Earn points for every verified report, which accumulate in a personal wallet.
 - **Real-time Notifications**: Get instant alerts when your report is verified or collected.
+- **Dynamic Leaderboard**: Compete with others and track your ranking based on total points earned.
 
 ### 🚛 For Collectors
 
@@ -30,8 +32,9 @@ The **E-Waste Management System** empowers users to report electronic waste, whi
 ### ⚙️ Core System
 
 - **Secure Authentication**: Powered by **Clerk** for seamless sign-up and login.
-- **Database**: Robust data management using **PostgreSQL** via **Neon**, managed with **Drizzle ORM**.
-- **Responsive Design**: Built with **Next.js 16** and **Tailwind CSS v4** for a premium experience on mobile and desktop.
+- **Database**: Robust real-time data management using **Firebase Firestore**.
+- **Responsive Design**: Built with **Next.js 15+** and **Tailwind CSS v4** for a premium experience on mobile and desktop.
+- **Smart Location**: Integrated location search and mapping features.
 
 ---
 
@@ -39,7 +42,7 @@ The **E-Waste Management System** empowers users to report electronic waste, whi
 
 - **Frontend**: Next.js 16 (App Router), React 19, Tailwind CSS v4, Lucide React
 - **Backend**: Next.js Server Actions
-- **Database**: PostgreSQL (Neon Tech), Drizzle ORM
+- **Database**: Firebase Firestore
 - **Authentication**: Clerk
 - **AI Integration**: Google Generative AI (Gemini)
 - **Notifications**: React Hot Toast
@@ -54,8 +57,8 @@ Follow these instructions to get the project up and running on your local machin
 ### Prerequisites
 
 - Node.js (v18+)
-- npm, yarn, or forward
-- A generic SQL database (PostgreSQL recommended)
+- npm or yarn
+- A Firebase project
 - A Clerk account
 - A Google Cloud Console account (for Gemini API)
 
@@ -74,35 +77,27 @@ npm install
 
 ### 3. Environment Setup
 
-Create a `.env` file in the root directory and populate it with your credentials:
+Create a `.env.local` file in the root directory and populate it with your credentials:
 
 ```env
-# Database Connection
-DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
+# Google Gemini AI
+NEXT_PUBLIC_GEMINI_API_KEY=AIzaSy...
 
 # Clerk Authentication
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
 CLERK_SECRET_KEY=sk_test_...
 
-# Google Gemini AI
-GEMINI_API_KEY=AIzaSy...
+# Firebase Configuration
+NEXT_PUBLIC_FIREBASE_API_KEY=...
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=...
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=...
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=...
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=...
+NEXT_PUBLIC_FIREBASE_APP_ID=...
+NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=...
 ```
 
-### 4. Database Initialization
-
-Push the database schema using Drizzle Kit:
-
-```bash
-npm run db:push
-```
-
-_(Optional) Launch Drizzle Studio to inspect the database:_
-
-```bash
-npm run db:studio
-```
-
-### 5. Run the Application
+### 4. Run the Application
 
 Start the development server:
 
@@ -119,9 +114,7 @@ Visit [http://localhost:3000](http://localhost:3000) to view the app.
 ```bash
 E-Waste-Material/
 ├── 📂 app/                            # Application routes (Next.js App Router)
-│   ├── 📂 (auth)/                     # Authentication routes
-│   │   ├── sign-in/[[...sign-in]]/    # Clerk sign-in page
-│   │   └── sign-up/[[...sign-up]]/    # Clerk sign-up page
+│   ├── 📂 (auth)/                     # Authentication routes (Clerk)
 │   ├── 📂 api/                        # API endpoints
 │   ├── 📂 collect/
 │   │   └── page.tsx                   # Waste collection interface & verification
@@ -133,25 +126,17 @@ E-Waste-Material/
 │   │   └── page.tsx                   # Check balance & redeem rewards
 │   ├── globals.css                    # Global styles & Tailwind directives
 │   ├── layout.tsx                     # Root layout (includes Header & Sidebar)
-│   ├── metadata.tsx                   # Metadata configuration
 │   └── page.tsx                       # Landing page / Home
 ├── 📂 components/                     # Reusable UI components
-│   ├── 📂 ui/                         # Base UI components (Button, Input, etc.)
-│   ├── ContractInteraction.tsx        # Blockchain/Contract interaction component
 │   ├── Header.tsx                     # Top navigation bar
 │   └── Sidebar.tsx                    # Side navigation menu
 ├── 📂 hooks/                          # Custom React hooks
 │   └── useMediaQuery.ts               # Hook for responsive design measurements
-├── 📂 lib/                            # Utility libraries
-│   └── utils.ts                       # Class name merging utility (clsx + tw-merge)
-├── 📂 public/                         # Static assets (images, icons)
 ├── 📂 utils/                          # Backend utilities
 │   └── 📂 db/
-│       ├── actions.ts                 # Server Actions for DB operations (CRUD)
-│       ├── dbConfig.ts                # Database connection configuration
-│       └── schema.ts                  # Drizzle ORM schema definitions
-├── .env                               # Environment variables
-├── drizzle.config.js                  # Drizzle ORM configuration
+│       ├── actions.ts                 # Server Actions for Firestore operations
+│       └── dbConfig.ts                # Firebase configuration and initialization
+├── .env.local                         # Environment variables
 ├── next.config.ts                     # Next.js configuration
 ├── package.json                       # Dependencies & scripts
 └── tailwind.config.ts                 # Tailwind CSS configuration
