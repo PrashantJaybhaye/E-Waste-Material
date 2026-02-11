@@ -6,7 +6,7 @@ import { getUserByEmail, getRewardTransactions, getAvailableRewards, redeemRewar
 import { toast } from 'react-hot-toast'
 
 type Transaction = {
-    id: number
+    id: string
     type: 'earned_report' | 'earned_collect' | 'redeemed'
     amount: number
     description: string
@@ -14,14 +14,14 @@ type Transaction = {
 }
 
 type Reward = {
-    id: number
+    id: string
     name: string
     cost: number
     description: string | null
     collectionInfo: string
 }
 const RewardsPage = () => {
-    const [user, setUser] = useState<{ id: number; email: string; name: string } | null>(null)
+    const [user, setUser] = useState<{ id: string; email: string; name: string } | null>(null)
     const [balance, setBalance] = useState(0)
     const [transactions, setTransactions] = useState<Transaction[]>([])
     const [rewards, setRewards] = useState<Reward[]>([])
@@ -61,7 +61,7 @@ const RewardsPage = () => {
         fetchUserDataAndRewards()
     }, [])
 
-    const handleRedeemReward = async (rewardId: number) => {
+    const handleRedeemReward = async (rewardId: string) => {
         if (!user) {
             toast.error('Please log in to redeem rewards.')
             return
@@ -103,7 +103,7 @@ const RewardsPage = () => {
         if (balance > 0) {
             try {
                 // Update database
-                await redeemReward(user.id, 0);
+                await redeemReward(user.id, "0");
 
                 // Create a new transaction record
                 await createTransaction(user.id, 'redeemed', balance, 'Redeemed all points');
@@ -205,7 +205,7 @@ const RewardsPage = () => {
                                     </div>
                                     <p className="text-gray-600 mb-2">{reward.description}</p>
                                     <p className="text-sm text-gray-500 mb-4">{reward.collectionInfo}</p>
-                                    {reward.id === 0 ? (
+                                    {reward.id === "0" ? (
                                         <div className="space-y-2">
                                             <Button
                                                 onClick={handleRedeemAllPoints}

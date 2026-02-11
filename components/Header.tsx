@@ -14,20 +14,19 @@ import { useMediaQuery } from "@/hooks/useMediaQuery"
 // import { Notification } from "@/utils/db/schema" // Removing this import to avoid conflict
 
 interface HeaderProps {
-    onMenuClick: () => void,
-    totalEarnings: number,
+    onMenuClick: () => void;
 }
 
 interface Notification {
-    id: number;
-    userId: number;
+    id: string;
+    userId: string;
     title: string;
     message: string;
     isRead: boolean;
     createdAt: Date;
 }
 
-export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
+export default function Header({ onMenuClick }: HeaderProps) {
     const { user, isSignedIn, isLoaded } = useUser()
     const { signOut } = useClerk()
     const [notification, setNotification] = useState<Notification[]>([])
@@ -119,7 +118,7 @@ export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
         }
     }, [])
 
-    const handleNotificationClick = async (notificationId: number) => {
+    const handleNotificationClick = async (notificationId: string) => {
         // Optimistically update local state - remove notification immediately
         const previousNotifications = notification;
         setNotification(prevNotifications =>

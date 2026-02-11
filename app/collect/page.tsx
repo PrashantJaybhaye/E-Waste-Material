@@ -12,13 +12,13 @@ import { getUserByEmail, getWasteCollectionTasks, saveCollectedWaste, saveReward
 const geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY
 
 type CollectionTask = {
-    id: number
+    id: string
     location: string
     wasteType: string
     amount: string
     status: 'pending' | 'in_progress' | 'completed' | 'verified'
     date: string
-    collectorId: number | null
+    collectorId: string | null
 }
 
 const ITEMS_PER_PAGE = 5
@@ -44,10 +44,10 @@ function StatusBadge({ status }: { status: CollectionTask['status'] }) {
 function page() {
     const [tasks, setTasks] = useState<CollectionTask[]>([])
     const [loading, setLoading] = useState(true)
-    const [hoveredTaskId, setHoveredTaskId] = useState<number | null>(null)
+    const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null)
     const [searchTerm, setSearchTerm] = useState('')
     const [currentPage, setCurrentPage] = useState(1)
-    const [user, setUser] = useState<{ id: number; email: string; name: string } | null>(null)
+    const [user, setUser] = useState<{ id: string; email: string; name: string } | null>(null)
 
     useEffect(() => {
         const fetchUserAndTasks = async () => {
@@ -92,7 +92,7 @@ function page() {
     } | null>(null)
     const [reward, setReward] = useState<number | null>(null)
 
-    const handleStatusChange = async (taskId: number, newStatus: CollectionTask['status']) => {
+    const handleStatusChange = async (taskId: string, newStatus: CollectionTask['status']) => {
         if (!user) {
             toast.error('Please log in to collect waste.')
             return

@@ -5,8 +5,8 @@ import { Loader, Award, User, Trophy, Crown } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
 type Reward = {
-    id: number
-    userId: number
+    id: string
+    userId: string
     points: number
     level: number
     createdAt: Date
@@ -16,7 +16,7 @@ type Reward = {
 export default function LeaderboardPage() {
     const [rewards, setRewards] = useState<Reward[]>([])
     const [loading, setLoading] = useState(true)
-    const [user, setUser] = useState<{ id: number; email: string; name: string } | null>(null)
+    const [user, setUser] = useState<{ id: string; email: string; name: string } | null>(null)
 
     useEffect(() => {
         const fetchRewardsAndUser = async () => {

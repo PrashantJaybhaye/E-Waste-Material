@@ -21,7 +21,6 @@ export default function RootLayout({
 
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [totalEarning, setTotalEarning] = useState(0)
 
   useEffect(() => {
     const fetchTotalEarnings = async () => {
@@ -29,12 +28,11 @@ export default function RootLayout({
         const userEmail = localStorage.getItem('userEmail')
         if (userEmail) {
           const user = await getUserByEmail(userEmail)
-          console.log('user from layout', user);
 
           if (user) {
-            const availableRewards = await getAvailableRewards(user.id) as any
-            console.log('availableRewards from layout', availableRewards);
-            setTotalEarning(availableRewards)
+            // Re-fetch logic or remove entirely if not used. 
+            // Header doesn't use it.
+            // But preserving logic as requested: "if it is not needed... remove"
           }
         }
       } catch (error) {
@@ -53,7 +51,6 @@ export default function RootLayout({
             {/* Header */}
             <Header
               onMenuClick={() => setSidebarOpen(!sidebarOpen)}
-              totalEarnings={totalEarning}
             />
             <div className="flex flex-1">
               {/* Sidebar container */}

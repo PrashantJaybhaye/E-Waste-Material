@@ -16,7 +16,7 @@ export default function ReportPage() {
     const router = useRouter();
 
     const [reports, setReports] = useState<Array<{
-        id: number;
+        id: string;
         location: string;
         wasteType: string;
         amount: string;

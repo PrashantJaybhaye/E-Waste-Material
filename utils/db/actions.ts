@@ -1,88 +1,157 @@
 'use server'
 
 import { db } from "./dbConfig";
-import { Notification, Reports, Rewards, Transaction, Users, CollectedWaste } from "./schema";
-import { eq, sql, and, desc } from "drizzle-orm";
+import {
+    collection,
+    addDoc,
+    getDocs,
+    getDoc,
+    doc,
+    query,
+    where,
+    orderBy,
+    limit,
+    updateDoc,
+    Timestamp,
+    setDoc,
+    increment,
+    runTransaction,
+    writeBatch
+} from "firebase/firestore";
+
+// Helper to serialize Firestore data to plain objects
+const serializeDoc = (doc: any) => {
+    if (!doc.exists()) return null;
+    const data = doc.data();
+    return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : data.createdAt,
+        updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : data.updatedAt,
+        date: data.date instanceof Timestamp ? data.date.toDate() : data.date,
+        collectionDate: data.collectionDate instanceof Timestamp ? data.collectionDate.toDate() : data.collectionDate,
+    };
+};
 
 export async function createUser(email: string, name: string) {
     try {
-        const [existingUser] = await db.select().from(Users).where(eq(Users.email, email)).execute();
-        if (existingUser) {
-            return existingUser;
+        // Use a deterministic ID based on email to prevent duplicates
+        // Note: encoding email to be safe as a doc ID
+        const docId = email.replace(/[^a-zA-Z0-9]/g, '_');
+        const userRef = doc(db, "users", docId);
+
+        const userSnapshot = await getDoc(userRef);
+
+        if (userSnapshot.exists()) {
+            return serializeDoc(userSnapshot);
         }
-        const [user] = await db.insert(Users).values({
+
+        const newUser = {
             email,
             name,
-        }).returning().execute();
-        return user;
+            createdAt: new Date(),
+        };
+
+        await setDoc(userRef, newUser);
+        return { id: docId, ...newUser };
     } catch (error) {
-        console.error('Error creating user', error)
+        console.error('Error creating user', error);
         return null;
     }
 }
 
 export async function getUserByEmail(email: string) {
     try {
-        const [user] = await db.select().from(Users).where(eq(Users.email, email)).execute();
-        return user;
+        const usersRef = collection(db, "users");
+        const q = query(usersRef, where("email", "==", email));
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+            return serializeDoc(querySnapshot.docs[0]);
+        }
+        return null;
     } catch (error) {
-        console.error('Error fetching user by email', error)
+        console.error('Error fetching user by email', error);
         return null;
     }
 }
 
-export async function getUnreadNotifications(userId: number) {
+export async function getUnreadNotifications(userId: string) {
     try {
-        const notifications = await db.select().from(Notification).where(and(eq(Notification.userId, userId), eq(Notification.isRead, false))).execute();
-        return notifications;
+        const notificationsRef = collection(db, "notifications");
+        const q = query(
+            notificationsRef,
+            where("userId", "==", userId),
+            where("isRead", "==", false)
+        );
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(serializeDoc);
     } catch (error) {
-        console.error('Error fetching unread notifications', error)
+        console.error('Error fetching unread notifications', error);
         return null;
     }
 }
 
-export async function getUserBalance(userId: number): Promise<number> {
-    const transactions = await getRewardTransactions(userId);
+export async function getUserBalance(userId: string): Promise<number> {
+    try {
+        const transactionsRef = collection(db, "transactions");
+        const q = query(transactionsRef, where("userId", "==", userId));
+        const querySnapshot = await getDocs(q);
 
-    if (!transactions) return 0;
-    const balance = transactions.reduce((acc: number, transaction: any) => {
-        return transaction.type.startsWith('earned') ? acc + transaction.amount : acc - transaction.amount;
-    }, 0)
-    return Math.max(balance, 0);
+        const balance = querySnapshot.docs.reduce((acc, doc) => {
+            const data = doc.data();
+            return data.type.startsWith('earned') ? acc + data.amount : acc - data.amount;
+        }, 0);
+        return Math.max(balance, 0);
+    } catch (error) {
+        console.error("Error getting user balance:", error, userId);
+        return 0;
+    }
 }
 
-export async function getRewardTransactions(userId: number) {
+export async function getRewardTransactions(userId: string) {
     try {
-        const transactions = await db.select({
-            id: Transaction.id,
-            type: Transaction.type,
-            amount: Transaction.amount,
-            description: Transaction.description,
-            date: Transaction.date,
-        }).from(Transaction).where(eq(Transaction.userId, userId)).orderBy(desc(Transaction.date)).limit(10).execute();
-
-        const formattedTransactions = transactions.map(t => ({
-            ...t,
-            date: t.date.toISOString().split('T')[0], // YYYY-MM-DD
-        }))
-
-        return formattedTransactions;
+        const transactionsRef = collection(db, "transactions");
+        const q = query(
+            transactionsRef,
+            where("userId", "==", userId),
+            orderBy("date", "desc"),
+            limit(10)
+        );
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(serializeDoc).map((t: any) => {
+            const date = t.date;
+            let formattedDate = new Date().toISOString().split('T')[0]; // Default
+            if (date instanceof Date && !isNaN(date.getTime())) {
+                formattedDate = date.toISOString().split('T')[0];
+            } else if (typeof date === 'string') {
+                const parsed = new Date(date);
+                if (!isNaN(parsed.getTime())) {
+                    formattedDate = parsed.toISOString().split('T')[0];
+                }
+            }
+            return {
+                ...t,
+                date: formattedDate
+            };
+        });
     } catch (error) {
-        console.error('Error fetching reward transactions', error)
+        console.error('Error fetching reward transactions', error);
         return [];
     }
 }
 
-export async function markNotificationAsRead(notificationId: number) {
+export async function markNotificationAsRead(notificationId: string) {
     try {
-        await db.update(Notification).set({ isRead: true }).where(eq(Notification.id, notificationId)).execute();
+        const notificationRef = doc(db, "notifications", notificationId);
+        await updateDoc(notificationRef, { isRead: true });
     } catch (error) {
-        console.error('Error marking notification as read', error)
+        console.error('Error marking notification as read', error);
     }
 }
 
 export async function createReport(
-    userId: number,
+    userId: string,
     location: string,
     wasteType: string,
     amount: string,
@@ -90,133 +159,187 @@ export async function createReport(
     verificationResult?: any
 ) {
     try {
-        const [report] = await db
-            .insert(Reports)
-            .values({
-                userId,
-                location,
-                wasteType,
-                amount,
-                imageUrl,
-                verificationResult,
-                status: "pending",
-            })
-            .returning()
-            .execute();
-
-        // Award 10 points for reporting waste
-        const pointsEarned = 10;
-        await updateRewardPoints(userId, pointsEarned);
-
-        // // Create a transaction for the earned points
-        await createTransaction(userId, 'earned_report', pointsEarned, 'Points earned for reporting waste');
-
-        // // Create a notification for the user
-        await createNotification(
+        const reportData = {
             userId,
-            `You've earned ${pointsEarned} points for reporting waste!`,
-            'reward'
-        );
+            location,
+            wasteType,
+            amount,
+            imageUrl: imageUrl || null,
+            verificationResult: verificationResult || null,
+            status: "pending",
+            createdAt: new Date(),
+        };
 
-        return report;
+        const batch = writeBatch(db);
+
+        // 1. Create Report
+        const reportRef = doc(collection(db, "reports"));
+        batch.set(reportRef, reportData);
+
+        // 2. Update Reward Points (find existing or create new)
+        const pointsEarned = 10;
+        const rewardsRef = collection(db, "rewards");
+        const q = query(rewardsRef, where("userId", "==", userId));
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+            const rewardDoc = querySnapshot.docs[0];
+            batch.update(rewardDoc.ref, {
+                points: increment(pointsEarned),
+                updatedAt: new Date()
+            });
+        } else {
+            const newRewardRef = doc(collection(db, "rewards"));
+            batch.set(newRewardRef, {
+                userId,
+                points: pointsEarned,
+                updatedAt: new Date(),
+                createdAt: new Date(),
+                isAvailable: true,
+                name: 'Waste Collection Reward',
+                collectionInfo: 'Points earned from waste collection'
+            });
+        }
+
+        // 3. Create Transaction
+        const transactionRef = doc(collection(db, "transactions"));
+        batch.set(transactionRef, {
+            userId,
+            type: 'earned_report',
+            amount: pointsEarned,
+            description: 'Points earned for reporting waste',
+            date: new Date(),
+        });
+
+        // 4. Create Notification
+        const notificationRef = doc(collection(db, "notifications"));
+        batch.set(notificationRef, {
+            userId,
+            message: `You've earned ${pointsEarned} points for reporting waste!`,
+            title: 'reward',
+            isRead: false,
+            createdAt: new Date(),
+        });
+
+        await batch.commit();
+
+        return { id: reportRef.id, ...reportData };
     } catch (error) {
         console.error("Error creating report:", error);
         return null;
     }
 }
 
-export async function updateRewardPoints(userId: number, pointsToAdd: number) {
+export async function updateRewardPoints(userId: string, pointsToAdd: number) {
     try {
-        const [updatedReward] = await db
-            .update(Rewards)
-            .set({
-                points: sql`${Rewards.points} + ${pointsToAdd}`,
+        const rewardsRef = collection(db, "rewards");
+        const q = query(rewardsRef, where("userId", "==", userId));
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+            const rewardDoc = querySnapshot.docs[0];
+            await updateDoc(rewardDoc.ref, {
+                points: increment(pointsToAdd),
                 updatedAt: new Date()
-            })
-            .where(eq(Rewards.userId, userId))
-            .returning()
-            .execute();
-        return updatedReward;
+            });
+            // Fetch fresh data to ensure correct points return
+            const updatedDoc = await getDoc(rewardDoc.ref);
+            return serializeDoc(updatedDoc);
+        } else {
+            // Create new reward entry if not exists
+            const newReward = {
+                userId,
+                points: pointsToAdd,
+                updatedAt: new Date(),
+                createdAt: new Date(),
+                isAvailable: true,
+                name: 'Waste Collection Reward', // accurate defaults?
+                collectionInfo: 'Points earned from waste collection'
+            };
+            const newDocRef = await addDoc(rewardsRef, newReward);
+            return { id: newDocRef.id, ...newReward };
+        }
     } catch (error) {
         console.error("Error updating reward points:", error);
         return null;
     }
 }
 
-export async function createTransaction(userId: number, type: 'earned_report' | 'earned_collect' | 'redeemed', amount: number, description: string) {
+export async function createTransaction(userId: string, type: 'earned_report' | 'earned_collect' | 'redeemed', amount: number, description: string) {
     try {
-        const [transaction] = await db
-            .insert(Transaction)
-            .values({ userId, type, amount, description })
-            .returning()
-            .execute();
-        return transaction;
+        const transactionsRef = collection(db, "transactions");
+        const transactionData = {
+            userId,
+            type,
+            amount,
+            description,
+            date: new Date(),
+        };
+        const docRef = await addDoc(transactionsRef, transactionData);
+        return { id: docRef.id, ...transactionData };
     } catch (error) {
         console.error("Error creating transaction:", error);
         throw error;
     }
 }
 
-export async function createNotification(userId: number, message: string, type: string) {
+export async function createNotification(userId: string, message: string, type: string) {
     try {
-        const [notification] = await db
-            .insert(Notification)
-            .values({ userId, message, title: type })
-            .returning()
-            .execute();
-        return notification;
+        const notificationsRef = collection(db, "notifications");
+        const notificationData = {
+            userId,
+            message,
+            title: type,
+            isRead: false,
+            createdAt: new Date(),
+        };
+        const docRef = await addDoc(notificationsRef, notificationData);
+        return { id: docRef.id, ...notificationData };
     } catch (error) {
         console.error("Error creating notification:", error);
         return null;
     }
 }
 
-export async function getRecentReports(limit: number = 10) {
+export async function getRecentReports(limitCount: number = 10) {
     try {
-        const reports = await db
-            .select()
-            .from(Reports)
-            .orderBy(desc(Reports.createdAt))
-            .limit(limit)
-            .execute();
-        return reports;
+        const reportsRef = collection(db, "reports");
+        const q = query(reportsRef, orderBy("createdAt", "desc"), limit(limitCount));
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(serializeDoc);
     } catch (error) {
         console.error("Error fetching recent reports:", error);
         return [];
     }
 }
 
-export async function getAvailableRewards(userId: number) {
+export async function getAvailableRewards(userId: string) {
     try {
-        console.log('Fetching available rewards for user:', userId);
-
         // Get user's total points
-        const userTransactions = (await getRewardTransactions(userId)) || [];
-        const userPoints = userTransactions.reduce((total, transaction) => {
-            return transaction.type.startsWith('earned') ? total + transaction.amount : total - transaction.amount;
+        const transactionsRef = collection(db, "transactions");
+        const qTransactions = query(transactionsRef, where("userId", "==", userId));
+        const transactionSnapshot = await getDocs(qTransactions);
+
+        const userPoints = transactionSnapshot.docs.reduce((total, doc) => {
+            const t = doc.data();
+            return t.type.startsWith('earned') ? total + t.amount : total - t.amount;
         }, 0);
 
-        console.log('User total points:', userPoints);
+        // Get available rewards
+        // Note: Logic logic implies fetching "REDEEMABLE" items. 
+        // Original code queried 'Rewards' table with isAvailable=true.
+        const rewardsRef = collection(db, "rewards");
+        const qRewards = query(rewardsRef, where("isAvailable", "==", true));
+        const rewardSnapshot = await getDocs(qRewards);
+        const dbRewards = rewardSnapshot.docs.map(serializeDoc) as any[];
 
-        // Get available rewards from the database
-        const dbRewards = await db
-            .select({
-                id: Rewards.id,
-                name: Rewards.name,
-                cost: Rewards.points,
-                description: Rewards.description,
-                collectionInfo: Rewards.collectioninfo,
-            })
-            .from(Rewards)
-            .where(eq(Rewards.isAvailable, true))
-            .execute();
+        // Filter out the user's own reward balance entry usually?
+        // But original code didn't filter.
+        // We act as if 'rewards' collection contains items to redeem.
 
-        console.log('Rewards from database:', dbRewards);
-
-        // Combine user points and database rewards
         const allRewards = [
             {
-                id: 0, // Use a special ID for user's points
+                id: "0", // Use a special ID for user's points display which we can keep as number 0 or string '0'
                 name: "Your Points",
                 cost: userPoints,
                 description: "Redeem your earned points",
@@ -225,7 +348,6 @@ export async function getAvailableRewards(userId: number) {
             ...dbRewards
         ];
 
-        console.log('All available rewards:', allRewards);
         return allRewards;
     } catch (error) {
         console.error("Error fetching available rewards:", error);
@@ -233,135 +355,123 @@ export async function getAvailableRewards(userId: number) {
     }
 }
 
-export async function getWasteCollectionTasks(limit: number = 20) {
+export async function getWasteCollectionTasks(limitCount: number = 20) {
     try {
-        const tasks = await db
-            .select({
-                id: Reports.id,
-                location: Reports.location,
-                wasteType: Reports.wasteType,
-                amount: Reports.amount,
-                status: Reports.status,
-                date: Reports.createdAt,
-                collectorId: Reports.collectorId,
-            })
-            .from(Reports)
-            .limit(limit)
-            .execute();
+        // Original code:
+        // .limit(limit)
+        const reportsRef = collection(db, "reports");
+        const q = query(reportsRef, orderBy("createdAt", "desc"), limit(limitCount));
+        const querySnapshot = await getDocs(q);
 
-        return tasks.map(task => ({
-            ...task,
-            date: task.date.toISOString().split('T')[0], // Format date as YYYY-MM-DD
-        }));
+        return querySnapshot.docs.map(serializeDoc).map((task: any) => {
+            const date = task.createdAt;
+            let formattedDate = '';
+            if (date instanceof Date && !isNaN(date.getTime())) {
+                formattedDate = date.toISOString().split('T')[0];
+            } else if (typeof date === 'string') {
+                const parsed = new Date(date);
+                if (!isNaN(parsed.getTime())) {
+                    formattedDate = parsed.toISOString().split('T')[0];
+                }
+            }
+            return {
+                ...task,
+                date: formattedDate
+            };
+        });
     } catch (error) {
         console.error("Error fetching waste collection tasks:", error);
         return [];
     }
 }
 
-export async function updateTaskStatus(reportId: number, newStatus: string, collectorId?: number) {
+export async function updateTaskStatus(reportId: string, newStatus: string, collectorId?: string) {
     try {
+        const reportRef = doc(db, "reports", reportId);
         const updateData: any = { status: newStatus };
         if (collectorId !== undefined) {
             updateData.collectorId = collectorId;
         }
-        const [updatedReport] = await db
-            .update(Reports)
-            .set(updateData)
-            .where(eq(Reports.id, reportId))
-            .returning()
-            .execute();
-        return updatedReport;
+        await updateDoc(reportRef, updateData);
+        const updatedReport = await getDoc(reportRef);
+        return serializeDoc(updatedReport);
     } catch (error) {
         console.error("Error updating task status:", error);
         throw error;
     }
 }
 
-export async function saveReward(userId: number, amount: number) {
+export async function saveReward(userId: string, amount: number) {
     try {
-        const [reward] = await db
-            .insert(Rewards)
-            .values({
-                userId,
-                name: 'Waste Collection Reward',
-                collectioninfo: 'Points earned from waste collection',
-                points: amount,
-                isAvailable: true,
-            })
-            .returning()
-            .execute();
+        const updatedReward = await updateRewardPoints(userId, amount);
 
-        // Create a transaction for this reward
         await createTransaction(userId, 'earned_collect', amount, 'Points earned for collecting waste');
 
-        return reward;
+        return updatedReward;
     } catch (error) {
         console.error("Error saving reward:", error);
         throw error;
     }
 }
 
-export async function saveCollectedWaste(reportId: number, collectorId: number, verificationResult: any) {
+export async function saveCollectedWaste(reportId: string, collectorId: string, verificationResult: any) {
     try {
-        const [collectedWaste] = await db
-            .insert(CollectedWaste)
-            .values({
-                reportId,
-                collectorId,
-                collectionDate: new Date(),
-                status: 'verified',
-                verificationResult,
-            })
-            .returning()
-            .execute();
-        return collectedWaste;
+        const collectedWasteRef = collection(db, "collected_waste");
+        const data = {
+            reportId,
+            collectorId,
+            collectionDate: new Date(),
+            status: 'verified',
+            verificationResult,
+        };
+        const docRef = await addDoc(collectedWasteRef, data);
+        return { id: docRef.id, ...data };
     } catch (error) {
         console.error("Error saving collected waste:", error);
         throw error;
     }
 }
 
-export async function redeemReward(userId: number, rewardId: number) {
+export async function redeemReward(userId: string, rewardId: string) {
     try {
         const userReward = await getOrCreateReward(userId) as any;
 
-        if (rewardId === 0) {
+        if (rewardId === '0' || rewardId === 0 as any) {
             // Redeem all points
-            const [updatedReward] = await db.update(Rewards)
-                .set({
-                    points: 0,
-                    updatedAt: new Date(),
-                })
-                .where(eq(Rewards.userId, userId))
-                .returning()
-                .execute();
+            const rewardRef = doc(db, "rewards", userReward.id);
+            await updateDoc(rewardRef, {
+                points: 0,
+                updatedAt: new Date(),
+            });
 
-            // Create a transaction for this redemption
             await createTransaction(userId, 'redeemed', userReward.points, `Redeemed all points: ${userReward.points}`);
 
-            return updatedReward;
+            return { ...userReward, points: 0 };
         } else {
-            // Existing logic for redeeming specific rewards
-            const availableReward = await db.select().from(Rewards).where(eq(Rewards.id, rewardId)).execute();
+            const rewardDoc = await getDoc(doc(db, "rewards", rewardId));
+            const availableReward = serializeDoc(rewardDoc);
 
-            if (!userReward || !availableReward[0] || userReward.points < availableReward[0].points) {
-                throw new Error("Insufficient points or invalid reward");
+            if (!availableReward) throw new Error("Reward not found");
+
+            // Use 'cost' if available, otherwise fallback to points (safeguard)
+            // ensuring we process cost correctly
+            const cost = availableReward.cost || availableReward.points || 0;
+
+            if (!userReward || userReward.points < cost) {
+                throw new Error("Insufficient points");
             }
 
-            const [updatedReward] = await db.update(Rewards)
-                .set({
-                    points: sql`${Rewards.points} - ${availableReward[0].points}`,
-                    updatedAt: new Date(),
-                })
-                .where(eq(Rewards.userId, userId))
-                .returning()
-                .execute();
+            const rewardRef = doc(db, "rewards", userReward.id);
+            await updateDoc(rewardRef, {
+                points: increment(-cost),
+                updatedAt: new Date(),
+            });
 
-            // Create a transaction for this redemption
-            await createTransaction(userId, 'redeemed', availableReward[0].points, `Redeemed: ${availableReward[0].name}`);
+            await createTransaction(userId, 'redeemed', cost, `Redeemed: ${availableReward.name}`);
 
-            return updatedReward;
+            // Fresh read to return accurate state
+            const updatedUserReward = await getDoc(rewardRef);
+            return serializeDoc(updatedUserReward);
         }
     } catch (error) {
         console.error("Error redeeming reward:", error);
@@ -369,19 +479,27 @@ export async function redeemReward(userId: number, rewardId: number) {
     }
 }
 
-export async function getOrCreateReward(userId: number) {
+export async function getOrCreateReward(userId: string) {
     try {
-        let [reward] = await db.select().from(Rewards).where(eq(Rewards.userId, userId)).execute();
-        if (!reward) {
-            [reward] = await db.insert(Rewards).values({
-                userId,
-                name: 'Default Reward',
-                collectioninfo: 'Default Collection Info',
-                points: 0,
-                isAvailable: true,
-            }).returning().execute();
+        const rewardsRef = collection(db, "rewards");
+        const q = query(rewardsRef, where("userId", "==", userId));
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+            return serializeDoc(querySnapshot.docs[0]);
         }
-        return reward;
+
+        const newReward = {
+            userId,
+            name: 'Default Reward',
+            collectionInfo: 'Default Collection Info',
+            points: 0,
+            isAvailable: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        };
+        const docRef = await addDoc(rewardsRef, newReward);
+        return { id: docRef.id, ...newReward };
     } catch (error) {
         console.error("Error getting or creating reward:", error);
         return null;
@@ -390,23 +508,56 @@ export async function getOrCreateReward(userId: number) {
 
 export async function getAllRewards() {
     try {
-        const rewards = await db
-            .select({
-                id: Rewards.id,
-                userId: Rewards.userId,
-                points: Rewards.points,
-                createdAt: Rewards.createdAt,
-                userName: Users.name,
-            })
-            .from(Rewards)
-            .leftJoin(Users, eq(Rewards.userId, Users.id))
-            .orderBy(desc(Rewards.points))
-            .execute();
+        const rewardsRef = collection(db, "rewards");
+        const q = query(rewardsRef, orderBy("points", "desc"));
+        const querySnapshot = await getDocs(q);
+
+        const rewards = querySnapshot.docs.map(serializeDoc) as any[];
+
+        // Filter for unique userIds from rewards
+        const userIds = Array.from(new Set(rewards.map(r => r.userId))).filter(Boolean);
+
+        const usersMap = new Map();
+
+        // Fetch users in chunks (limit is usually 10 or 30 for 'in' queries)
+        // Firestore limit for 'in' is 10.
+        // Or 30? Docs says: "in" query supports up to 10 comparison values.
+
+        if (userIds.length > 0) {
+            const chunkSize = 10;
+            for (let i = 0; i < userIds.length; i += chunkSize) {
+                const chunk = userIds.slice(i, i + chunkSize);
+                const usersRef = collection(db, "users");
+                const qUsers = query(usersRef, where("__name__", "in", chunk)); // __name__ checks document ID.
+                // Wait, are userIds the Document IDs?
+                // In createUser, we now use custom ID = email (sanitized).
+                // Or existing IDs?
+                // If existing users have random IDs, and userId matches that ID, then `documentId()` or `__name__` is correct.
+                // If userId is NOT the key, but a field, we should use where("id", "in", chunk) ?
+                // Firestore document IDs ARE the keys. `serializeDoc` maps doc.id to `id`.
+                // Assuming `reward.userId` points to `user.id` (document ID), then `where(documentId(), "in", chunk)` is correct.
+
+                // Note: documentId() in modular SDK is `documentId()`. I didn't import `documentId`.
+                // But `where(documentId(), ...)` needs `documentId` imported.
+                // Alternatively, `where("__name__", ...)` works directly as string.
+
+                try {
+                    const usersSnapshot = await getDocs(qUsers);
+                    usersSnapshot.docs.forEach(doc => {
+                        usersMap.set(doc.id, doc.data().name);
+                    });
+                } catch (err) {
+                    console.error("Error fetching users chunk", err);
+                }
+            }
+        }
 
         return rewards.map(reward => {
-            const level = Math.floor(reward.points / 20) + 1; // Basic level calculation
+            const userName = usersMap.get(reward.userId) || 'Unknown User';
+            const level = Math.floor(reward.points / 20) + 1;
             return {
                 ...reward,
+                userName,
                 level
             };
         });
